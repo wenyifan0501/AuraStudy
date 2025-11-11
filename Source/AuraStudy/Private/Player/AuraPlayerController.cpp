@@ -23,10 +23,13 @@ void AAuraPlayerController::BeginPlay()
 	Super::BeginPlay();
 
 	check(AuraContext);
-	
-	UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
-	check(Subsystem);
-	Subsystem->AddMappingContext(AuraContext, 0);
+
+	UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(
+		GetLocalPlayer());
+	if (Subsystem)
+	{
+		Subsystem->AddMappingContext(AuraContext, 0);
+	}
 
 	bShowMouseCursor = true;
 	DefaultMouseCursor = EMouseCursor::Default;
@@ -69,7 +72,10 @@ void AAuraPlayerController::CursorTrace()
 	if (!CursorHit.bBlockingHit) return;
 
 	LastActor = ThisActor;
-	ThisActor = Cast<IEnemyInterface>(CursorHit.GetActor());
+	if (CursorHit.GetActor()->Implements<UEnemyInterface>())
+	{
+		ThisActor = TScriptInterface<IEnemyInterface>(CursorHit.GetActor());
+	}
 
 	/**
 	 * Line trace from cursor. There are several scenariows:

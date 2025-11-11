@@ -1,0 +1,33 @@
+// Copyright Van'Gel Soc
+
+
+#include "UI/WidgetController/OverlayWidgetController.h"
+
+#include "AbilitySystem/AuraAttributeSet.h"
+
+void UOverlayWidgetController::BroadcastInitialValues()
+{
+	const UAuraAttributeSet* AuraAttributeSet = CastChecked<UAuraAttributeSet>(AttributeSet);
+
+	OnHealthChanged.Broadcast(AuraAttributeSet->GetHealth());
+	OnMaxHealthChanged.Broadcast(AuraAttributeSet->GetMaxHealth());
+}
+
+void UOverlayWidgetController::BindCallbackToDependencies()
+{
+	const UAuraAttributeSet* AuraAttributeSet = CastChecked<UAuraAttributeSet>(AttributeSet);
+	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AuraAttributeSet->GetHealthAttribute()).AddUObject(
+		this, &UOverlayWidgetController::HealthCHanged);
+	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AuraAttributeSet->GetMaxHealthAttribute()).
+	                        AddUObject(this, &UOverlayWidgetController::MaxHealthCHanged);
+}
+
+void UOverlayWidgetController::HealthCHanged(const FOnAttributeChangeData& Data) const
+{
+	OnHealthChanged.Broadcast(Data.NewValue);
+}
+
+void UOverlayWidgetController::MaxHealthCHanged(const FOnAttributeChangeData& Data) const
+{
+	OnMaxHealthChanged.Broadcast(Data.NewValue);
+}
