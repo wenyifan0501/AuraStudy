@@ -76,6 +76,10 @@ void AAuraPlayerController::CursorTrace()
 	{
 		ThisActor = TScriptInterface<IEnemyInterface>(CursorHit.GetActor());
 	}
+	else
+	{
+		ThisActor = nullptr;
+	}
 
 	/**
 	 * Line trace from cursor. There are several scenariows:
