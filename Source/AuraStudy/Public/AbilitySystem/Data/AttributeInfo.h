@@ -32,5 +32,10 @@ UCLASS()
 class AURASTUDY_API UAttributeInfo : public UDataAsset
 {
 	GENERATED_BODY()
-	
+
+public:
+	FAuraAttributeInfo FindAtrributeInfoForTag(const FGameplayTag& AttributeTag, bool bLogNotFound = false) const;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	TArray<FAuraAttributeInfo> AttributeInformation;
 };
