@@ -54,6 +54,11 @@ void FAuraGameplayTags::InitializeNativeGameplayTags()
 		FString("Bonus damage added when a critical hit is scored")
 	);
 
+	GameplayTags.Attributes_Secondary_CriticalHitResistance = UGameplayTagsManager::Get().AddNativeGameplayTag(
+		FName("Attributes.Secondary.CriticalHitResistance"),
+		FString("Reduces critical hit chance of attacking enemies")
+	);
+
 	GameplayTags.Attributes_Secondary_HealthRegeneration = UGameplayTagsManager::Get().AddNativeGameplayTag(
 		FName("Attributes.Secondary.HealthRegeneration"),
 		FString("Amount of Health regenerated every 1 second")
