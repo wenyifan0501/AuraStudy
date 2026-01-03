@@ -1,0 +1,659 @@
+---
+description: 
+alwaysApply: false
+enabled: true
+updatedAt: 2026-01-01T04:19:24.021Z
+provider: 
+---
+
+# UE5 项目规范指南
+
+## 目录
+1. [引言](#引言)
+2. [UE5项目基础设置规范](#ue5项目基础设置规范)
+3. [蓝图与C++混合编程的最佳实践](#蓝图与c混合编程的最佳实践)
+4. [资源命名与管理规则](#资源命名与管理规则)
+5. [版本控制协作指南](#版本控制协作指南)
+6. [性能优化基础要点](#性能优化基础要点)
+7. [常见问题解答](#常见问题解答)
+
+---
+
+## 引言
+
+本文档为 CodeBuddy 插件项目的规范指南，旨在帮助 UE5 新手快速建立正确的开发习惯。遵循这些规范可以提升代码可读性、降低协作成本、优化项目性能。
+
+**适用对象**：UE5 初级到中级开发者
+**更新频率**：每季度评审一次
+**反馈渠道**：团队每周例会
+
+---
+
+## UE5项目基础设置规范
+
+### 1. 项目创建与配置
+
+**规则 1.1：项目命名必须使用英文，避免中文和特殊字符**
+- ✅ 正确：`AuraStudy`、`MyActionGame`
+- ❌ 错误：`我的游戏`、`Action-Game_2024`
+
+**规则 1.2：统一使用 C++ 模板项目**
+- 选择"Games" → "Blank" → "C++"模板
+- 在项目设置中启用"Use Improved Reflection System"
+
+**规则 1.3：配置默认启动地图**
+- 编辑 `Config/DefaultEngine.ini` 文件：
+  ```ini
+  [/Script/EngineSettings.GameMapsSettings]
+  GameDefaultMap=/Game/Maps/MainMenu
+  EditorStartupMap=/Game/Maps/MainMenu
+  ```
+
+**规则 1.4：设置项目统计目标**
+- **桌面项目**：Maximum性能级别
+- **移动项目**：Scalable或Medium性能级别
+- 配置位置：编辑 → 项目设置 → 引擎 → 渲染 → 优化
+
+**规则 1.5：启用必要的基础功能**
+- 在 `.uproject` 文件中启用模块：
+  ```json
+  {
+    "Plugins": [
+      {"Name": "GameplayAbilities", "Enabled": true},
+      {"Name": "EnhancedInput", "Enabled": true}
+    ]
+  }
+  ```
+
+### 2. 编辑器设置
+
+**规则 2.1：禁用自动变量创建**
+- 编辑 → 编辑器偏好设置 → 通用 → 性能
+- 取消勾选"授权自动创建Widget变量"
+- 原因：强制显式命名变量，避免生成模糊名称
+
+**规则 2.2：配置默认DPI设置**
+- 编辑 → 项目设置 → 引擎 → 用户界面
+- 设置"字体DPI"为72，"预设"为Standard
+- 作用：确保UI在不同显示器上显示一致
+
+**规则 2.3：开启静态网格体距离场**
+- 项目设置 → 渲染 → 光线追踪
+- 勾选"生成网格体距离场"
+- 示例：启用后动态光照会自动包含阴影效果
+
+---
+
+## 蓝图与C++混合编程的最佳实践
+
+### 1. 架构设计原则
+
+**规则 3.1：C++负责核心系统，蓝图负责具体表现**
+- ✅ C++适用场景：
+  - 游戏逻辑系统（角色控制器、关卡管理器）
+  - 性能敏感功能（AI行为树、物理计算）
+  - 可复用的基类（ACharacter、AActor的派生类）
+
+- ✅ 蓝图适用场景：
+  - UI界面逻辑（按钮点击、菜单切换）
+  - 关卡特定事件（触发器、对话序列）
+  - 可视化调优（特效触发时机、相机震动）
+
+**示例代码**：
+```cpp
+// C++基类：定义核心属性和方法
+UCLASS()
+class MYGAME_API AMonsterBase : public APawn
+{
+    GENERATED_BODY()
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Stats")
+    float MaxHealth = 100.0f;
+    
+    UFUNCTION(BlueprintCallable, Category="Gameplay")
+    void TakeDamage(float DamageAmount);
+    
+protected:
+    // C++实现基础逻辑
+    void Die();
+};
+```
+
+在蓝图中：继承 `AMonsterBase`，通过蓝图设置具体的动画和音效表现
+
+**规则 3.2：使用`UFUNCTION`宏暴露C++函数给蓝图**
+- 关键字说明：
+  - `BlueprintCallable`：蓝图中可调用
+  - `BlueprintImplementableEvent`：蓝图实现，C++调用
+  - `BlueprintNativeEvent`：C++提供默认实现，蓝图可重写
+
+**示例**：
+```cpp
+// C++定义
+UFUNCTION(BlueprintNativeEvent, Category="Gameplay")
+void OnEnemyKilled(AActor* Enemy);
+
+void AMyCharacter::OnEnemyKilled_Implementation(AActor* Enemy)
+{
+    // C++默认实现：添加积分
+    Score += 100;
+}
+```
+
+蓝图中：重写`OnEnemyKilled`，添加击杀特效和音效
+
+**规则 3.3：属性暴露规范**
+- 使用`UPROPERTY`宏并合理设置修饰符：
+  - `EditAnywhere`：可在所有地方编辑
+  - `EditDefaultsOnly`：仅能在类默认值中编辑
+  - `EditInstanceOnly`：仅能在实例中编辑
+  - `BlueprintReadWrite`：蓝图可读写
+  - ` BlueprintReadOnly`：蓝图只读
+
+**示例**：
+```cpp
+UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Config")
+TSubclassOf<AWeapon> StartingWeaponClass; // 默认配置，蓝图只读
+
+UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Runtime")
+float CurrentHealth; // 实例可调，蓝图可读写
+```
+
+### 2. 数据传递与通信
+
+**规则 3.4：优先使用C++结构体传递复杂数据**
+- 创建可序列化的数据结构：
+```cpp
+USTRUCT(BlueprintType)
+struct FInventoryItem : public FTableRowBase
+{
+    GENERATED_BODY()
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FString ItemName;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UTexture2D* Icon;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 Quantity;
+};
+```
+
+**规则 3.5：使用委托进行事件通信**
+- C++定义委托：
+```cpp
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHealthChanged, float, NewHealth);
+
+UCLASS()
+class MYGAME_API ACharacterBase : public ACharacter
+{
+    UPROPERTY(BlueprintAssignable, Category="Events")
+    FOnHealthChanged OnHealthChanged;
+};
+```
+
+蓝图中：绑定`OnHealthChanged`事件，更新UI血条显示
+
+### 3. 调试与维护
+
+**规则 3.6：为蓝图暴露的函数添加注释**
+```cpp
+/**
+ * 对目标造成伤害
+ * @param Target 被伤害的目标
+ * @param DamageAmount 伤害数值
+ * @return 目标是否死亡
+ */
+UFUNCTION(BlueprintCallable, Category="Combat")
+bool ApplyDamageToTarget(AActor* Target, float DamageAmount);
+```
+
+**规则 3.7：避免蓝图中频繁调用C++函数**
+- ❌ 错误做法：在Tick事件中每帧调用复杂C++计算
+- ✅ 正确做法：使用事件驱动，状态变化时触发
+
+---
+
+## 资源命名与管理规则
+
+### 1. 命名规范
+
+**规则 4.1：统一使用大驼峰命名法（PascalCase）**
+- 资源名称：`MainMenuMap`、`PlayerCharacter`
+- ❌ 避免：`main_menu_map`、`player-character`
+
+**规则 4.2：添加类型前缀便于识别**
+| 资源类型 | 前缀 | 示例 |
+|---------|------|------|
+| 蓝图类 | BP_ | `BP_PlayerCharacter`、`BP_EnemySpawner` |
+| 蓝图接口 | BPI_ | `BPI_Interactable` |
+| 蓝图宏库 | BPL_ | `BPL_MathHelper` |
+| 材质 | M_ | `M_Dirt`、`M_Water` |
+| 材质实例 | MI_ | `MI_Dirt_Rainy` |
+| 纹理 | T_ | `T_RockNormal`、`T_GrassAlbedo` |
+| 静态网格体 | SM_ | `SM_TreeOak`、`SM_RockLarge` |
+| 骨骼网格体 | SK_ | `SK_Hero`、`SK_EnemyGoblin` |
+| 动画序列 | A_ | `A_Idle`、`A_RunForward` |
+| 动画蒙太奇 | AM_ | `AM_AttackCombo1` |
+| 动画蓝图 | ABP_ | `ABP_Player`、`ABP_Enemy` |
+| Widget蓝图 | WBP_ | `WBP_MainMenu`、`WBP_HealthBar` |
+| 声音 | S_ | `S_AmbientForest`、`S_Explosion` |
+| 声音提示 | S_Cue | `S_Cue_Footstep` |
+| 数据表 | DT_ | `DT_Weapons`、`DT_Enemies` |
+| 曲线表 | CT_ | `CT_DamageCurve` |
+| 用户控件 | UMG_ | `UMG_HealthBar` |
+
+**规则 4.3：文件夹结构必须清晰**
+```
+Content/
+├── Blueprints/
+│   ├── Characters/
+│   │   ├── BP_PlayerCharacter.uasset
+│   │   └── Enemies/
+│   │       └── BP_EnemyBase.uasset
+│   ├── UI/
+│   │   ├── WBP_MainMenu.uasset
+│   │   └── WBP_HUD.uasset
+│   └── Game/
+│       └── BP_GameMode.uasset
+├── Materials/
+│   ├── Characters/
+│   ├── Environment/
+│   └── UI/
+├── Meshes/
+│   ├── Skeletal/
+│   │   └── Characters/
+│   └── Static/
+│       ├── Architecture/
+│       └── Nature/
+├── Textures/
+│   ├── Characters/
+│   ├── Environment/
+│   └── UI/
+├── Animations/
+│   ├── Montages/
+│   ├── Sequences/
+│   └── Blueprints/
+├── Audio/
+│   ├── Music/
+│   ├── SFX/
+│   └── Voice/
+├── Maps/
+│   ├── MainMenu.umap
+│   ├── Level01.umap
+│   └── Sublevels/
+├── Data/
+│   ├── DataTables/
+│   └── Curves/
+└── Effects/
+    ├── ParticleSystems/
+    └── PostProcess/
+```
+
+**规则 4.4：纹理命名添加后缀说明用途**
+- `T_Rock_Albedo`（基础颜色）
+- `T_Rock_Normal`（法线）
+- `T_Rock_Roughness`（粗糙度）
+- `T_Rock_Metallic`（金属度）
+- `T_Rock_AO`（环境光遮蔽）
+
+### 2. 资源管理最佳实践
+
+**规则 4.5：使用材质实例而非直接修改材质**
+- 创建主材质`M_Master`，设置可编辑参数
+- 创建材质实例`MI_Master_Dirt`，调整参数值
+- 优势：减少编译次数，内存占用更低
+
+**规则 4.6：合并相似纹理到纹理图集（Texture Atlas）**
+- UI元素：将多个图标打包到一张纹理
+- 角色：将身体各部位纹理合并
+- 工具：使用"Texture Atlas"插件或第三方工具
+
+**规则 4.7：定期清理未使用的资源**
+- 右键内容浏览器 → 参照查看器
+- 选中多个资源查看引用次数
+- 删除零引用资源（注意先备份）
+
+**规则 4.8：使用重定向器管理资源迁移**
+- 资源重命名后自动生成重定向器
+- 项目设置 → 重定向器 → 清理重定向器
+- 定期清理避免垃圾数据堆积
+
+---
+
+## 版本控制协作指南
+
+### 1. Git基础配置
+
+**规则 5.1：项目必须包含完善的.gitignore文件**
+```gitignore
+# UE5 自动生成文件
+Binaries/
+Intermediate/
+DerivedDataCache/
+Saved/
+.vs/
+.vscode/
+*.sln.DotSettings.user
+
+# 用户配置
+Config/DefaultEditorPerProjectUserSettings.ini
+Config/DefaultEngine_User.ini
+
+# 编译输出
+*.log
+*.sln.cache
+
+# 临时文件
+*.tmp
+*.bak
+
+# 插件缓存
+Plugins/__ExternalProjects__
+```
+
+**规则 5.2：提交消息使用约定式提交（Conventional Commits）**
+- 格式：`<类型>(<范围>): <描述>`
+  
+类型说明：
+- `feat`：新功能（如：添加角色系统）
+- `fix`：修复Bug（如：修复UI显示错误）
+- `refactor`：重构（如：优化输入系统架构）
+- `docs`：文档更新
+- `style`：格式调整（不影响功能）
+- `perf`：性能优化
+- `test`：添加测试
+
+示例：
+```
+feat(combat): 添加基础战斗系统
+- 实现角色攻击逻辑
+- 添加伤害计算系统
+- 新增打击反馈效果
+
+fix(ui): 修复血条显示不更新问题
+原因：UpdateHealth函数未正确调用
+解决方案：添加委托绑定
+
+refactor(input): 迁移到Enhanced Input
+- 替换旧的InputComponent
+- 更新Input Mapping Asset
+```
+
+**规则 5.3：分支管理策略**
+- `main`：主分支，始终保持稳定可运行
+- `develop`：开发分支，集成每日最新功能
+- `feature/<功能名>`：功能分支（如：`feature/combat-system`）
+- `bugfix/<问题描述>`：修复分支（如：`bugfix/ui-crash`）
+- `hotfix/<紧急修复>`：生产环境紧急修复
+
+分支工作流：
+1. 从`develop`创建功能分支
+2. 开发完成后合并到`develop`
+3. 定期将`develop`合并到`main`发布
+
+### 2. 协作规范
+
+**规则 5.4：避免提交大文件**
+- 单文件超过50MB需使用Git LFS
+- 二进制资源（纹理、模型）优先考虑外部存储
+- 提交前运行`git size`检查仓库大小
+
+**规则 5.5：蓝图为二进制文件，协作时注意冲突解决**
+- 合并冲突时使用文本模式查看差异
+- 优先选择"我的"或"他们的"版本
+- 避免手动编辑`.uasset`文件
+
+**规则 5.6：定期同步远程仓库**
+```bash
+# 每天开始工作前执行
+git pull origin develop
+git fetch --all
+```
+
+**规则 5.7：提交前进行本地测试**
+- 运行项目确保无编译错误
+- 检查功能是否正常工作
+- 运行静态分析工具（编辑器 → 工具 → 静态分析）
+
+### 3. 发布流程
+
+**规则 5.8：版本号遵循语义化版本（SemVer）**
+- 格式：`主版本.次版本.修订号`
+  - 主版本：不兼容的API更改
+  - 次版本：新增功能，向后兼容
+  - 修订号：Bug修复
+
+示例：
+- `1.0.0`：首个正式版本
+- `1.1.0`：添加多人模式功能
+- `1.1.1`：修复多人模式连接Bug
+
+**规则 5.9：发布前必须经过完整测试**
+- 功能测试：验证所有核心功能
+- 性能测试：帧率、内存、加载时间
+- 兼容性测试：不同平台、不同分辨率
+- 回归测试：确保修复未引入新问题
+
+---
+
+## 性能优化基础要点
+
+### 1. 渲染性能
+
+**规则 6.1：合理使用LOD（细节层次）**
+- 为大型模型创建LOD0、LOD1、LOD2
+- 设置LOD切换距离（项目设置 → 渲染 → LOD）
+- 示例：建筑模型LOD0距离0-20米，LOD1距离20-50米
+
+**规则 6.2：控制Draw Calls数量**
+- 合并相同材质的网格体
+- 使用实例化渲染（Instance Static Mesh）
+- 目标：每帧Draw Calls < 1000（中端设备）
+
+**规则 6.3：优化材质复杂度**
+- 减少材质节点数量（<50个为佳）
+- 避免使用高计算成本节点（如`Fresnel`、`SceneTexture`）
+- 使用材质函数复用代码
+
+**示例优化**：
+```cpp
+// 错误：在材质中逐像素计算复杂数学运算
+// 高消耗节点：Perlin Noise、Custom节点
+
+// 正确：使用纹理贴图预计算结果
+// 低消耗：采样纹理
+```
+
+**规则 6.4：合理使用后期处理**
+- 避免多个Post Process Volume叠加
+- 使用Unlit Shader替代复杂光照计算
+- 移动端禁用光线追踪和体积雾
+
+### 2. 性能分析工具
+
+**规则 6.5：定期使用Stat命令监控性能**
+- `stat fps`：显示帧率
+- `stat unit`：显示各模块耗时
+- `stat sceneRendering`：渲染统计
+- `stat game`：游戏逻辑统计
+- `stat particles`：粒子系统统计
+
+快捷键：`~`打开控制台，输入命令
+
+**规则 6.6：使用Session Frontend分析**
+- 窗口 → 开发者工具 → Session Frontend
+- 记录帧率、内存使用、事件日志
+- 识别性能瓶颈
+
+**规则 6.7：启用GPU Profiler**
+- 项目设置 → 引擎 → 性能数据
+- 勾选"启用GPU性能分析"
+- 分析着色器执行时间
+
+### 3. 内存管理
+
+**规则 6.8：合理设置纹理压缩格式**
+- 桌面平台：使用BC7格式（高质量）
+- 移动平台：使用ASTC格式
+- UI纹理：使用BC4格式（单通道）
+
+设置方式：右键纹理 → 压缩格式
+
+**规则 6.9：控制粒子系统数量**
+- 限制同时激活的粒子系统数量（<200）
+- 使用"Kill Completed"标志自动销毁
+- 避免在Tick中频繁创建销毁粒子
+
+**规则 6.10：异步加载资源**
+```cpp
+// 异步加载关卡
+UGameplayStatics::LoadStreamLevel(
+    this,
+    FName("NextLevel"),
+    true,
+    true,
+    FLatentActionInfo()
+);
+
+// 异步加载资源
+TSoftObjectPtr<AActor> ActorRef = TSoftObjectPtr<AActor>(FSoftObjectPath("/Game/Blueprints/BP_Enemy"));
+ActorRef.LoadSynchronous();
+```
+
+### 4. 代码优化
+
+**规则 6.11：避免在Tick中进行复杂计算**
+```cpp
+// 错误：每帧遍历所有敌人
+void Tick(float DeltaTime)
+{
+    for (AActor* Enemy : AllEnemies) {
+        // 复杂逻辑...
+    }
+}
+
+// 正确：使用事件驱动
+void OnEnemySpawned(AActor* NewEnemy)
+{
+    SpawnedEnemies.Add(NewEnemy);
+}
+```
+
+**规则 6.12：使用对象池减少GC压力**
+```cpp
+// 创建对象池
+UObjectPool* Pool = NewObject<UObjectPool>();
+Pool->Initialize(ABullet::StaticClass(), 100);
+
+// 从池中获取对象
+ABullet* Bullet = Pool->Spawn();
+
+// 归还对象到池中
+Pool->Recycle(Bullet);
+```
+
+**规则 6.13：合理使用C++模板减少虚函数调用**
+- 对于性能关键代码，使用模板而非继承
+- 避免在循环中调用虚函数
+
+---
+
+## 常见问题解答
+
+### Q1：如何决定某个功能用C++还是蓝图实现？
+**A**：参考以下决策树：
+1. 是否需要高性能？（如：物理计算、AI决策）→ C++
+2. 是否需要跨多个项目复用？→ C++
+3. 是否需要频繁调整和可视化调优？→ 蓝图
+4. 是否是UI交互逻辑？→ 蓝图
+5. 是否是核心游戏规则？→ C++基类 + 蓝图子类
+
+### Q2：为什么我的项目打开很慢？
+**A**：常见原因和解决方法：
+- 原因1：启动地图太大 → 拆分关卡使用流式加载
+- 原因2：中间文件堆积 → 删除`Intermediate`和`DerivedDataCache`文件夹
+- 原因3：过多自动加载资源 → 检查项目设置中的"启动时加载的资源"
+- 原因4：插件过多 → 禁用不常用的插件
+
+### Q3：Git合并蓝图冲突后出现乱码怎么办？
+**A**：解决步骤：
+1. 使用二进制模式打开`.uasset`文件
+2. 选择保留一个版本（"我的"或"他们的"）
+3. 在编辑器中手动重新合并蓝图节点
+4. 考虑拆分蓝图到多个文件减少冲突概率
+
+### Q4：如何优化移动端性能？
+**A**：关键优化点：
+1. 降低分辨率和阴影质量
+2. 使用LOD和剔除技术
+3. 减少粒子数量和复杂度
+4. 优化材质，减少纹理采样
+5. 使用Instanced Static Mesh合并对象
+6. 限制同时音效数量
+
+### Q5：什么时候应该使用数据表（DataTable）？
+**A**：适用场景：
+- 静态配置数据（武器属性、敌人信息）
+- 需要本地化显示的文本
+- 游戏平衡调整频繁的数据
+- 关卡配置（怪物刷新表、掉落表）
+
+示例：创建`DT_Weapons`数据表，包含所有武器的基础属性，设计人员可以直接编辑无需重新编译。
+
+### Q6：如何调试蓝图中暴露的C++函数？
+**A**：调试方法：
+1. 在C++代码中添加`UE_LOG`输出：
+   ```cpp
+   UE_LOG(LogTemp, Warning, TEXT("ApplyDamage called: %f"), DamageAmount);
+   ```
+2. 在蓝图中使用"Print String"节点查看调用
+3. 使用C++断点，附加到游戏进程
+4. 在蓝图中添加"Print to Screen"节点
+
+### Q7：项目文件太大如何压缩？
+**A**：压缩方案：
+1. 删除未使用的资源和中间文件
+2. 使用Git LFS管理大文件
+3. 压缩纹理和音频资源
+4. 清理历史提交记录（谨慎操作）
+5. 考虑使用Subversion（SVN）替代Git管理大资源
+
+### Q8：如何提高蓝图编译速度？
+**A**：优化建议：
+1. 拆分大型蓝图为多个小型蓝图
+2. 使用函数库和宏复用逻辑
+3. 减少嵌套层级
+4. 使用C++替换性能关键部分
+5. 关闭不需要的蓝图中断点
+
+---
+
+## 附录：快速参考清单
+
+### 每日开发检查
+- [ ] 拉取最新代码
+- [ ] 提交前本地测试
+- [ ] 编写清晰的提交消息
+- [ ] 删除临时和未使用资源
+
+### 代码评审检查
+- [ ] 命名符合规范
+- [ ] 资源路径正确
+- [ ] 性能无明显问题
+- [ ] 添加必要注释
+- [ ] 无编译警告
+
+### 性能优化检查
+- [ ] Draw Calls < 1000
+- [ ] 帧率 > 60 FPS（桌面）/> 30 FPS（移动）
+- [ ] 内存使用合理
+- [ ] 无明显卡顿
+
+---
+
+**文档版本**：v1.0  
+**最后更新**：2025-01-01  
+**维护人**：CodeBuddy开发团队  
+**反馈邮箱**：team@codebuddy.com
